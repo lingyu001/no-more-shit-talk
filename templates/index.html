@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analysis App</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 1rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        input[type="text"] {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            width: 200px;
+        }
+
+        button {
+            padding: 0.5rem 1.5rem;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .results {
+            display: none;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .info-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .recommendation {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .news-container {
+            margin-top: 2rem;
+        }
+
+        .news-item {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .news-item h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .news-item p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        .error-message {
+            display: none;
+            color: #e74c3c;
+            text-align: center;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #fde2e2;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Stock Analysis Dashboard</h1>
+            <p>Enter a stock symbol to get analysis, predictions, and news</p>
+        </div>
+
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="ticker" placeholder="Enter stock symbol (e.g., AAPL)">
+                <button onclick="analyzeStock()">Analyze</button>
+            </div>
+        </div>
+
+        <div class="loading">Analyzing stock data...</div>
+        <div class="error-message"></div>
+
+        <div class="results">
+            <div class="chart-container">
+                <h2>Stock Price Analysis</h2>
+                <div id="chart"></div>
+            </div>
+            <div class="info-container">
+                <h2>Analysis Results</h2>
+                <div id="stock-info"></div>
+                <div class="recommendation" id="recommendation"></div>
+                <div class="news-container">
+                    <h2>Recent News</h2>
+                    <div id="news-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function analyzeStock() {
+            const ticker = document.getElementById('ticker').value.toUpperCase();
+            if (!ticker) {
+                showError('Please enter a stock symbol');
+                return;
+            }
+
+            showLoading();
+            hideError();
+
+            $.ajax({
+                url: '/analyze',
+                method: 'POST',
+                data: { ticker: ticker },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        displayResults(response);
+                    } else {
+                        showError('Failed to analyze stock');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    showError('Error: ' + (xhr.responseJSON?.message || 'Failed to analyze stock'));
+                },
+                complete: function() {
+                    hideLoading();
+                }
+            });
+        }
+
+        function displayResults(data) {
+            // Show results container
+            document.querySelector('.results').style.display = 'grid';
+
+            // Display chart
+            const chartData = JSON.parse(data.chart_data);
+            Plotly.newPlot('chart', chartData.data, chartData.layout);
+
+            // Display stock info
+            const stockInfo = document.getElementById('stock-info');
+            stockInfo.innerHTML = `
+                <p><strong>Company:</strong> ${data.company_name}</p>
+                <p><strong>Current Price:</strong> $${data.current_price.toFixed(2)}</p>
+                <p><strong>Predicted Change:</strong> ${data.price_change.toFixed(2)}%</p>
+            `;
+
+            // Display recommendation
+            const recDiv = document.getElementById('recommendation');
+            recDiv.innerHTML = `<strong>Recommendation:</strong> ${data.recommendation}`;
+            recDiv.style.backgroundColor = getRecommendationColor(data.recommendation);
+
+            // Display news
+            const newsList = document.getElementById('news-list');
+            newsList.innerHTML = data.news.map(news => `
+                <div class="news-item">
+                    <h3>${news.title}</h3>
+                    <p>${news.description}</p>
+                    <a href="${news.url}" target="_blank">Read more</a>
+                </div>
+            `).join('');
+        }
+
+        function getRecommendationColor(recommendation) {
+            const colors = {
+                'Strong Buy': '#c8e6c9',
+                'Buy': '#dcedc8',
+                'Hold': '#fff9c4',
+                'Sell': '#ffccbc',
+                'Strong Sell': '#ffcdd2'
+            };
+            return colors[recommendation] || '#f5f5f5';
+        }
+
+        function showLoading() {
+            document.querySelector('.loading').style.display = 'block';
+            document.querySelector('.results').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.querySelector('.loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.querySelector('.error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.querySelector('.error-message').style.display = 'none';
+        }
+    </script>
+</body>
+</html> 
