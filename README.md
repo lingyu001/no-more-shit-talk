@@ -1,4 +1,4 @@
-# Stock Analysis App
+# Stock Analysis App beta
 
 A web-based stock analysis application that provides real-time stock analysis, news, and trading recommendations.
 
