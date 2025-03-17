@@ -1,77 +1,92 @@
 from typing import Dict, List
 import os
 import httpx
-from bs4 import BeautifulSoup
-from googleapiclient.discovery import build
+import yfinance as yf
+from datetime import datetime, timedelta
 from openai import AsyncOpenAI
 from fastapi import HTTPException
 
 class NewsService:
     def __init__(self):
-        self.google_api_key = os.getenv("GOOGLE_API_KEY")
-        self.google_cse_id = os.getenv("GOOGLE_CSE_ID")
         self.openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
-        if not all([self.google_api_key, self.google_cse_id, os.getenv("OPENAI_API_KEY")]):
-            raise ValueError("Missing required API keys in environment variables")
-
-    def create_search_query(self, symbol: str, date: str) -> str:
-        """Create a search query for the stock symbol."""
-        query = '("NVDA" OR "NVIDIA Corporation") ("stock news" OR "earnings" OR "company news")'
-        excluded_sites = "-site:youtube.com -site:facebook.com -site:tiktok.com -site:instagram.com -site:reddit.com -site:cnbc.com"
-        included_sites = ""
-        date_filter = f"after: {date}"
-        file_type = "filetype:html"
-        return f"{query} {excluded_sites} ({included_sites}) {date_filter} {file_type}"
+        if not os.getenv("OPENAI_API_KEY"):
+            raise ValueError("Missing OpenAI API key in environment variables")
 
     async def fetch_article_content(self, url: str) -> str:
-        """Fetch and extract the main content of an article."""
+        """Fetch the full content of an article."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, follow_redirects=True)
                 response.raise_for_status()
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Remove script and style elements
-                for script in soup(["script", "style", "nav", "header", "footer", "aside"]):
-                    script.decompose()
-
-                # Extract text from article or main content
-                article = soup.find('article') or soup.find('main') or soup.find('body')
-                if article:
-                    # Get all paragraphs
-                    paragraphs = article.find_all('p')
-                    content = ' '.join(p.get_text().strip() for p in paragraphs)
-                    # Clean up whitespace
-                    content = ' '.join(content.split())
-                    return content[:1000]  # Limit content length
-                return ""
+                return response.text
         except Exception as e:
             print(f"Error fetching article content from {url}: {str(e)}")
             return ""
 
-    async def search_news(self, query: str) -> List[Dict]:
-        """Search for news using Google Custom Search API and fetch article content."""
+    async def get_news(self, symbol: str) -> List[Dict]:
+        """Get news using yfinance API."""
         try:
-            service = build("customsearch", "v1", developerKey=self.google_api_key)
-            result = service.cse().list(q=query, cx=self.google_cse_id, num=10).execute()
+            # Create a Ticker object
+            ticker = yf.Ticker(symbol)
             
-            if "items" not in result:
+            # Get news
+            news = ticker.news
+            
+            if not news:
                 return []
             
             news_items = []
-            for item in result["items"]:
-                content = await self.fetch_article_content(item.get("link", ""))
-                if content:  # Only include articles where we successfully got content
+            for item in news[:10]:  # Take only the 10 most recent news items
+                try:
+                    if not isinstance(item, dict) or 'content' not in item:
+                        continue
+                        
+                    content = item.get('content', {})
+                    if not isinstance(content, dict):
+                        continue
+                    
+                    # Extract the article content from the description or summary
+                    article_content = content.get('description', '') or content.get('summary', '')
+                    
+                    # Get timestamp from pubDate
+                    timestamp = content.get('pubDate', '')
+                    if timestamp:
+                        try:
+                            published_at = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%SZ')
+                        except ValueError:
+                            published_at = datetime.now()
+                    else:
+                        published_at = datetime.now()
+                    
+                    # Get URL from either clickThroughUrl or canonicalUrl
+                    url = ''
+                    click_through = content.get('clickThroughUrl', {})
+                    canonical = content.get('canonicalUrl', {})
+                    if isinstance(click_through, dict):
+                        url = click_through.get('url', '')
+                    if not url and isinstance(canonical, dict):
+                        url = canonical.get('url', '')
+                    
+                    # Get publisher info
+                    provider = content.get('provider', {})
+                    publisher = provider.get('displayName', '') if isinstance(provider, dict) else ''
+                    
                     news_items.append({
-                        "title": item.get("title", ""),
-                        "content": content,
-                        "link": item.get("link", "")
+                        "title": content.get('title', ''),
+                        "content": article_content,
+                        "link": url,
+                        "publisher": publisher,
+                        "published_at": published_at.isoformat()
                     })
+                except Exception as e:
+                    print(f"Error processing news item: {str(e)}")
+                    continue
             
             return news_items
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Google search failed: {str(e)}")
+            print(f"Debug - Error in get_news: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to fetch news: {str(e)}")
 
     async def summarize_news(self, news_items: List[Dict]) -> str:
         """Summarize news articles using OpenAI's API."""
@@ -80,23 +95,20 @@ class NewsService:
 
         # Prepare the content for summarization
         content = "\n\n".join([
-            f"Title: {item['title']}\nContent: {item['content']}"
+            f"Title: {item['title']}\nPublisher: {item['publisher']}\nPublished At: {item['published_at']}\nContent: {item['content']}"
             for item in news_items
         ])
-        # write the content in to a file for dubugging
-        with open("news_content_debug.txt", "w") as f:
-            f.write(content)
 
-        prompt = f"Please provide a concise summary of the following stock-related news:\n\n{content}\n\nSummary:"
+        prompt = f"Please provide a comprehensive summary of the following stock-related news. Focus on key events, market impacts, and significant developments:\n\n{content}\n\nSummary:"
 
         try:
             response = await self.openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-3.5-turbo-16k",  # Using 16k model to handle longer content
                 messages=[
-                    {"role": "system", "content": "You are a financial news analyst. Provide clear and concise summaries of stock-related news."},
+                    {"role": "system", "content": "You are a financial news analyst. Provide clear and comprehensive summaries of stock-related news, highlighting key market impacts and developments."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=300,
+                max_tokens=1000,
                 temperature=0.7
             )
             return response.choices[0].message.content.strip()
@@ -104,12 +116,11 @@ class NewsService:
             raise HTTPException(status_code=500, detail=f"News summarization failed: {str(e)}")
 
     async def search_and_summarize(self, symbol: str) -> Dict:
-        """Combine search and summarization into a single operation."""
-        query = self.create_search_query(symbol)
-        news_items = await self.search_news(query)
+        """Combine news fetching and summarization into a single operation."""
+        news_items = await self.get_news(symbol)
         summary = await self.summarize_news(news_items)
         
         return {
             "summary": summary,
-            "sources": [item["link"] for item in news_items]
+            "sources": [{"link": item["link"], "publisher": item["publisher"], "published_at": item["published_at"]} for item in news_items]
         } 
