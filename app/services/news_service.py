@@ -89,27 +89,65 @@ class NewsService:
             raise HTTPException(status_code=500, detail=f"Failed to fetch news: {str(e)}")
 
     async def summarize_news(self, news_items: List[Dict]) -> str:
-        """Summarize news articles using OpenAI's API."""
+        """Summarize news articles using a two-step process with OpenAI's API."""
         if not news_items:
             return "No news articles found."
 
-        # Prepare the content for summarization
-        content = "\n\n".join([
-            f"Title: {item['title']}\nPublisher: {item['publisher']}\nPublished At: {item['published_at']}\nContent: {item['content']}"
-            for item in news_items
-        ])
+        # Step 1: Analyze each article individually
+        article_analyses = []
+        for item in news_items:
+            article_content = f"Title: {item['title']}\nPublisher: {item['publisher']}\nPublished At: {item['published_at']}\nContent: {item['content']}"
+            
+            prompt = f"""Analyze this news article and extract key information focusing on:
+1. Company key events
+2. Market impacts
+3. Significant product developments
 
-        prompt = f"Please provide a comprehensive summary of the following stock-related news. Focus on key events, market impacts, and significant developments:\n\n{content}\n\nSummary:"
+Article:
+{article_content}
+
+Provide a structured analysis with these key points."""
+
+            try:
+                response = await self.openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo-16k",
+                    messages=[
+                        {"role": "system", "content": "You are a financial news analyst. Analyze news articles and extract key information about company events, market impacts, and product developments."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=500,
+                    temperature=0.3
+                )
+                article_analyses.append(response.choices[0].message.content.strip())
+            except Exception as e:
+                print(f"Error analyzing article: {str(e)}")
+                continue
+
+        if not article_analyses:
+            return "Failed to analyze news articles."
+
+        # Step 2: Create a concise, objective summary
+        combined_analyses = "\n\n".join(article_analyses)
+        
+        final_prompt = f"""Based on the following detailed analyses of multiple news articles, create a concise, objective single-paragraph summary that highlights the most significant information about:
+1. Key company events
+2. Market impacts
+3. Product developments
+
+Detailed Analyses:
+{combined_analyses}
+
+Provide a focused, objective summary that emphasizes the most important information."""
 
         try:
             response = await self.openai_client.chat.completions.create(
-                model="gpt-3.5-turbo-16k",  # Using 16k model to handle longer content
+                model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "You are a financial news analyst. Provide clear and comprehensive summaries of stock-related news, highlighting key market impacts and developments."},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": "You are a financial news analyst. Create concise, objective summaries that focus on the most significant information."},
+                    {"role": "user", "content": final_prompt}
                 ],
-                max_tokens=1000,
-                temperature=0.7
+                max_tokens=500,
+                temperature=0.2
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
