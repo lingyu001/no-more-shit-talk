@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+# from fastapi.staticfiles import StaticFiles  # comment out if not using
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router as api_router
@@ -20,7 +20,7 @@ app.add_middleware(
 )
 
 # Mount static files for the test UI
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Include API routes
 app.include_router(api_router, prefix="/api/v1") 

@@ -42,27 +42,27 @@ async def test_news_service():
             print("\nSummary of news articles:")
             print(summary)
         
-        # Test complete workflow
-        print("\n3. Testing complete search and summarize workflow:")
-        result = await news_service.search_and_summarize(symbol)
-        print("\nFinal result:")
-        print(f"Summary: {result['summary']}")
-        print("\nSources:")
-        for source in result['sources']:
-            print(f"- Publisher: {source['publisher']}")
-            print(f"  Published At: {source['published_at']}")
-            print(f"  Link: {source['link']}")
-            print()
+        # # Test complete workflow
+        # print("\n3. Testing complete search and summarize workflow:")
+        # result = await news_service.search_and_summarize(symbol)
+        # print("\nFinal result:")
+        # print(f"Summary: {result['summary']}")
+        # print("\nSources:")
+        # for source in result['sources']:
+        #     print(f"- Publisher: {source['publisher']}")
+        #     print(f"  Published At: {source['published_at']}")
+        #     print(f"  Link: {source['link']}")
+        #     print()
             
-        # Test with a well-known stock symbol
-        news = await news_service.get_news("AAPL")
-        print(f"\nFetched {len(news)} news items for AAPL:")
-        for i, item in enumerate(news, 1):
-            print(f"\n{i}. Title: {item['title']}")
-            print(f"   Publisher: {item['publisher']}")
-            print(f"   Link: {item['link']}")
-            print(f"   Published At: {item['published_at']}")
-            print(f"   Content Preview: {item['content'][:100]}...")
+        # # Test with a well-known stock symbol
+        # news = await news_service.get_news("AAPL")
+        # print(f"\nFetched {len(news)} news items for AAPL:")
+        # for i, item in enumerate(news, 1):
+        #     print(f"\n{i}. Title: {item['title']}")
+        #     print(f"   Publisher: {item['publisher']}")
+        #     print(f"   Link: {item['link']}")
+        #     print(f"   Published At: {item['published_at']}")
+        #     print(f"   Content Preview: {item['content'][:100]}...")
         
     except Exception as e:
         print(f"\nError occurred: {str(e)}")

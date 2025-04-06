@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: liuxinglly/sad-api:v1
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    volumes:
+      - ./app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+networks:
+  default:
+    driver: bridge 

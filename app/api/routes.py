@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-
-from app.services.news_service import NewsService
 from app.core.dependencies import get_news_service
+from app.services.news_service import NewsService
 
 router = APIRouter()
 
@@ -11,7 +10,7 @@ class StockSymbolRequest(BaseModel):
 
 class NewsResponse(BaseModel):
     summary: str
-    sources: list[str]
+    sources: list[dict]
 
 class MarketAnalysisResponse(BaseModel):
     # To be implemented

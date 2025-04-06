@@ -8,10 +8,13 @@ from fastapi import HTTPException
 
 class NewsService:
     def __init__(self):
-        self.openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        api_key = os.getenv("OPENAI_API_KEY")
+        print(f"Debug: OpenAI API Key present: {bool(api_key)}")  # Don't print the actual key
         
-        if not os.getenv("OPENAI_API_KEY"):
+        if not api_key:
             raise ValueError("Missing OpenAI API key in environment variables")
+        
+        self.openai_client = AsyncOpenAI(api_key=api_key)
 
     async def fetch_article_content(self, url: str) -> str:
         """Fetch the full content of an article."""
@@ -30,14 +33,19 @@ class NewsService:
             # Create a Ticker object
             ticker = yf.Ticker(symbol)
             
-            # Get news
+            # Get news with debug logging
+            print(f"Fetching news for {symbol}...")
             news = ticker.news
+            print(f"Received news response: {len(news)} news")
             
             if not news:
+                print("No news found")
                 return []
             
             news_items = []
-            for item in news[:10]:  # Take only the 10 most recent news items
+            # take only the 3 most recent news items
+            NEWS_NUM = 3
+            for item in news[:NEWS_NUM]:  # Take only the 3 most recent news items
                 try:
                     if not isinstance(item, dict) or 'content' not in item:
                         continue
@@ -86,6 +94,7 @@ class NewsService:
             return news_items
         except Exception as e:
             print(f"Debug - Error in get_news: {str(e)}")
+            print(f"Error type: {type(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to fetch news: {str(e)}")
 
     async def summarize_news(self, news_items: List[Dict]) -> str:
@@ -110,7 +119,7 @@ Provide a structured analysis with these key points."""
 
             try:
                 response = await self.openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo-16k",
+                    model="gpt-3.5-turbo-0125",
                     messages=[
                         {"role": "system", "content": "You are a financial news analyst. Analyze news articles and extract key information about company events, market impacts, and product developments."},
                         {"role": "user", "content": prompt}
@@ -118,6 +127,7 @@ Provide a structured analysis with these key points."""
                     max_tokens=500,
                     temperature=0.3
                 )
+                # print(response)
                 article_analyses.append(response.choices[0].message.content.strip())
             except Exception as e:
                 print(f"Error analyzing article: {str(e)}")
@@ -141,7 +151,7 @@ Provide a focused, objective summary that emphasizes the most important informat
 
         try:
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-2024-11-20",
                 messages=[
                     {"role": "system", "content": "You are a financial news analyst. Create concise, objective summaries that focus on the most significant information."},
                     {"role": "user", "content": final_prompt}
