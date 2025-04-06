@@ -12,8 +12,8 @@ on:
         default: 'production'
         type: choice
         options:
-          - production
-          - staging
+          - dev
+          - prod
 
 jobs:
   deploy:
