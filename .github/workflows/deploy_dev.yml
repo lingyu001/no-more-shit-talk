@@ -119,6 +119,3 @@ jobs:
             
             # Clean up OCI config
             # rm -rf ~/.oci
-            
-            # Verify the container is running with the environment variable
-            docker exec sad_container env | grep OPENAI_API_KEY 
