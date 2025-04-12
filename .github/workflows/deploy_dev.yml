@@ -77,19 +77,15 @@ jobs:
               echo "Error: Failed to retrieve OPENAI_API_KEY from vault"
             fi
             
-            # Create a temporary environment file
-            echo "OPENAI_API_KEY=$OPENAI_API_KEY" > .env
-            
             # Run the new container with secrets
             docker run -d \
               --name sad_container \
               -p 80:8080 \
               --restart unless-stopped \
-              --env-file .env \
+              -e OPENAI_API_KEY="$OPENAI_API_KEY" \
               ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ inputs.image_tag || github.sha }}
             
             # Clean up the temporary environment file and OCI config
-            rm .env
             rm -rf ~/.oci
             
             # Verify the container is running with the environment variable
