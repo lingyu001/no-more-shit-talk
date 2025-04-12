@@ -90,6 +90,7 @@ jobs:
             fi
             
             # Test OCI CLI configuration
+            /home/ubuntu/bin/oci iam user get --user-id ${{ secrets.ORACLE_USER_OCID }}
             if ! /home/ubuntu/bin/oci iam user get --user-id ${{ secrets.ORACLE_USER_OCID }} &> /dev/null; then
               echo "Error: Failed to authenticate with OCI CLI"
               exit 1
