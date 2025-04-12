@@ -52,9 +52,19 @@ jobs:
             docker stop sad_containter || true
             docker rm sad_containter || true
             
-            # Run the new container
+            # Fetch secrets from Oracle Cloud Vault
+            # Note: You'll need to install OCI CLI and configure it on the VM
+            # The following commands assume OCI CLI is configured with proper permissions
+            OPENAI_API_KEY=$(oci secrets secret-bundle get-secret-bundle-by-name \
+              --vault-id ${{ secrets.ORACLE_VAULT_OCID }} \
+              --secret-name OPENAI_API_KEY \
+              --query "data.\"secret-bundle-content\".content" \
+              --raw-output | base64 --decode)
+            
+            # Run the new container with secrets
             docker run -d \
               --name sad_containter \
               -p 80:8080 \
               --restart unless-stopped \
+              -e OPENAI_API_KEY="$OPENAI_API_KEY" \
               ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ github.sha }} 
