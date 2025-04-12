@@ -68,10 +68,25 @@ jobs:
               --query "data.\"secret-bundle-content\".content" \
               --raw-output | base64 --decode)
             
+            # Verify the API key was retrieved
+            if [ -z "$OPENAI_API_KEY" ]; then
+              echo "Error: Failed to retrieve OPENAI_API_KEY from vault"
+              exit 1
+            fi
+            
+            # Create a temporary environment file
+            echo "OPENAI_API_KEY=$OPENAI_API_KEY" > .env
+            
             # Run the new container with secrets
             docker run -d \
               --name sad_container \
               -p 80:8080 \
               --restart unless-stopped \
-              -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-              ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ inputs.image_tag || github.sha }} 
+              --env-file .env \
+              ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ inputs.image_tag || github.sha }}
+            
+            # Clean up the temporary environment file
+            rm .env
+            
+            # Verify the container is running with the environment variable
+            docker exec sad_container env | grep OPENAI_API_KEY 
