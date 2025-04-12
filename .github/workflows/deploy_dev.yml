@@ -59,11 +59,41 @@ jobs:
             docker stop sad_container || true
             docker rm sad_container || true
             
-            # Configure OCI CLI
+            # Install OCI CLI if not already installed
+            if ! command -v oci &> /dev/null; then
+              echo "Installing OCI CLI..."
+              # Install required packages
+              sudo apt-get update
+              sudo apt-get install -y python3-pip
+              # Install OCI CLI
+              pip3 install oci-cli
+            fi
+            
+            # Configure OCI CLI if not already configured
             mkdir -p ~/.oci
-            echo "${{ secrets.ORACLE_CLI_CONFIG }}" > ~/.oci/config
-            echo "${{ secrets.ORACLE_CLI_KEY }}" > ~/.oci/oci_api_key.pem
-            chmod 600 ~/.oci/oci_api_key.pem
+            
+            # Check and create config file if it doesn't exist
+            if [ ! -f ~/.oci/config ]; then
+              echo "Creating OCI config file..."
+              echo "${{ secrets.ORACLE_CLI_CONFIG }}" > ~/.oci/config
+            else
+              echo "OCI config file already exists, skipping creation"
+            fi
+            
+            # Check and create API key file if it doesn't exist
+            if [ ! -f ~/.oci/oci_api_key.pem ]; then
+              echo "Creating OCI API key file..."
+              echo "${{ secrets.ORACLE_CLI_KEY }}" > ~/.oci/oci_api_key.pem
+              chmod 600 ~/.oci/oci_api_key.pem
+            else
+              echo "OCI API key file already exists, skipping creation"
+            fi
+            
+            # Test OCI CLI configuration
+            if ! oci iam user get --user-id ${{ secrets.ORACLE_USER_OCID }} &> /dev/null; then
+              echo "Error: Failed to authenticate with OCI CLI"
+              exit 1
+            fi
             
             # Fetch secrets from Oracle Cloud Vault
             OPENAI_API_KEY=$(oci secrets secret-bundle get-secret-bundle-by-name \
@@ -85,8 +115,8 @@ jobs:
               -e OPENAI_API_KEY="$OPENAI_API_KEY" \
               ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ inputs.image_tag || github.sha }}
             
-            # Clean up the temporary environment file and OCI config
-            rm -rf ~/.oci
+            # Clean up OCI config
+            # rm -rf ~/.oci
             
             # Verify the container is running with the environment variable
             docker exec sad_container env | grep OPENAI_API_KEY 
