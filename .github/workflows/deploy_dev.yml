@@ -60,7 +60,7 @@ jobs:
             docker rm sad_container || true
             
             # Install OCI CLI if not already installed
-            if ! command -v oci &> /dev/null; then
+            if ! command -v /home/ubuntu/bin/oci &> /dev/null; then
               echo "Installing OCI CLI..."
               # Install required packages
               sudo apt-get update
@@ -90,13 +90,13 @@ jobs:
             fi
             
             # Test OCI CLI configuration
-            if ! oci iam user get --user-id ${{ secrets.ORACLE_USER_OCID }} &> /dev/null; then
+            if ! /home/ubuntu/bin/oci iam user get --user-id ${{ secrets.ORACLE_USER_OCID }} &> /dev/null; then
               echo "Error: Failed to authenticate with OCI CLI"
               exit 1
             fi
             
             # Fetch secrets from Oracle Cloud Vault
-            OPENAI_API_KEY=$(oci secrets secret-bundle get-secret-bundle-by-name \
+            OPENAI_API_KEY=$(/home/ubuntu/bin/oci secrets secret-bundle get-secret-bundle-by-name \
               --vault-id ${{ secrets.ORACLE_VAULT_OCID }} \
               --secret-name OPENAI_API_KEY \
               --query "data.\"secret-bundle-content\".content" \
