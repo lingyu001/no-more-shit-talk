@@ -14,6 +14,11 @@ on:
         options:
           - dev
           - prod
+      image_tag:
+        description: 'Custom image tag (defaults to commit SHA if not specified)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   deploy:
@@ -36,7 +41,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ github.sha }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ inputs.image_tag || github.sha }}
 
       - name: Deploy to Oracle Cloud VM
         uses: appleboy/ssh-action@v1.0.3
@@ -46,11 +53,11 @@ jobs:
           key: ${{ secrets.ORACLE_VM_SSH_KEY }}
           script: |
             # Pull the latest image
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ github.sha }}
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ inputs.image_tag || github.sha }}
             
             # Stop and remove existing container if it exists
-            docker stop sad_containter || true
-            docker rm sad_containter || true
+            docker stop sad_container || true
+            docker rm sad_container || true
             
             # Fetch secrets from Oracle Cloud Vault
             # Note: You'll need to install OCI CLI and configure it on the VM
@@ -63,8 +70,8 @@ jobs:
             
             # Run the new container with secrets
             docker run -d \
-              --name sad_containter \
+              --name sad_container \
               -p 80:8080 \
               --restart unless-stopped \
               -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-              ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ github.sha }} 
+              ${{ secrets.DOCKERHUB_USERNAME }}/sad-api:${{ inputs.image_tag || github.sha }} 
