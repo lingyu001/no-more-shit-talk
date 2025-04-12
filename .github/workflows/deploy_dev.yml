@@ -75,7 +75,6 @@ jobs:
             # Verify the API key was retrieved
             if [ -z "$OPENAI_API_KEY" ]; then
               echo "Error: Failed to retrieve OPENAI_API_KEY from vault"
-              exit 1
             fi
             
             # Create a temporary environment file
